@@ -48,7 +48,7 @@ export default function GameCanvas({ onGameOver }: GameCanvasProps) {
   }, []);
 
   return (
-    <div className="flex flex-col items-center gap-3 font-mono text-green-400">
+    <div className="flex flex-col items-center gap-3 font-mono text-cyan-300">
       <div className="flex w-full max-w-[480px] justify-between text-sm">
         <span>SCORE: {score}</span>
         <span>WAVE: {wave}</span>
@@ -59,9 +59,9 @@ export default function GameCanvas({ onGameOver }: GameCanvasProps) {
         width={GameEngine.WIDTH}
         height={GameEngine.HEIGHT}
         style={{ aspectRatio: `${GameEngine.WIDTH} / ${GameEngine.HEIGHT}` }}
-        className="max-h-[75vh] w-auto max-w-full border border-green-700 bg-black"
+        className="max-h-[75vh] w-auto max-w-full rounded border border-cyan-500/40 bg-black shadow-[0_0_30px_rgba(34,211,238,0.2)]"
       />
-      <p className="text-xs text-green-600">Move: Left/Right or A/D · Shoot: Space</p>
+      <p className="text-xs text-cyan-600">Move: Left/Right or A/D · Shoot: Space</p>
     </div>
   );
 }

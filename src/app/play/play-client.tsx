@@ -106,8 +106,10 @@ export default function PlayClient({ userId, username }: PlayClientProps) {
 
   if (result) {
     return (
-      <div className="flex w-full max-w-md flex-col items-center gap-4 font-mono text-green-400">
-        <h2 className="text-2xl">GAME OVER</h2>
+      <div className="flex w-full max-w-md flex-col items-center gap-4 rounded-lg border border-cyan-500/20 bg-slate-950/60 p-6 font-mono text-cyan-100 shadow-[0_0_25px_rgba(34,211,238,0.1)] backdrop-blur">
+        <h2 className="bg-gradient-to-r from-cyan-300 via-fuchsia-300 to-violet-400 bg-clip-text text-2xl text-transparent">
+          GAME OVER
+        </h2>
         <p>
           Final score: {result.score} · Rank #{result.rank}
         </p>
@@ -116,9 +118,9 @@ export default function PlayClient({ userId, username }: PlayClientProps) {
             <p className="text-sm text-red-400">Could not save your score. Please try again.</p>
           )
         ) : (
-          <p className="text-sm text-green-600">
+          <p className="text-sm text-violet-300">
             Playing as guest — your score isn&apos;t saved.{" "}
-            <Link href="/register" className="underline hover:text-green-300">
+            <Link href="/register" className="underline hover:text-violet-200">
               Register
             </Link>{" "}
             to make it onto the leaderboard.
@@ -127,7 +129,7 @@ export default function PlayClient({ userId, username }: PlayClientProps) {
 
         <table className="w-full text-left text-sm">
           <thead>
-            <tr className="border-b border-green-800 text-green-600">
+            <tr className="border-b border-cyan-800/50 text-cyan-500">
               <th className="py-1 pr-2">#</th>
               <th className="py-1 pr-2">Name</th>
               <th className="py-1 pl-2 text-right">Score</th>
@@ -137,14 +139,16 @@ export default function PlayClient({ userId, username }: PlayClientProps) {
             {result.rows.map((row, i) => (
               <tr
                 key={i}
-                className={`border-b border-green-950 ${row.isYou ? "text-white" : ""}`}
+                className={`border-b border-cyan-950/50 ${row.isYou ? "text-white" : ""}`}
               >
                 <td className="py-1 pr-2">{i + 1}</td>
                 <td className="py-1 pr-2">
                   {row.displayName}
-                  {row.isYou && <span className="ml-2 text-xs text-green-500">(you)</span>}
+                  {row.isYou && <span className="ml-2 text-xs text-cyan-300">(you)</span>}
                   {row.isGuest && !row.isYou && (
-                    <span className="ml-2 rounded bg-green-900 px-1.5 py-0.5 text-xs">GUEST</span>
+                    <span className="ml-2 rounded bg-fuchsia-950 px-1.5 py-0.5 text-xs text-fuchsia-300">
+                      GUEST
+                    </span>
                   )}
                 </td>
                 <td className="py-1 pl-2 text-right">{row.score}</td>
@@ -155,7 +159,7 @@ export default function PlayClient({ userId, username }: PlayClientProps) {
 
         <button
           onClick={handlePlayAgain}
-          className="rounded bg-green-500 px-4 py-2 font-bold text-black hover:bg-green-400"
+          className="rounded bg-gradient-to-r from-cyan-400 to-violet-500 px-4 py-2 font-bold text-slate-950 shadow-[0_0_20px_rgba(34,211,238,0.35)] transition hover:from-cyan-300 hover:to-violet-400"
         >
           Play again
         </button>

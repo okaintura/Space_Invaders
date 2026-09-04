@@ -42,8 +42,10 @@ export default async function LeaderboardPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-10 font-mono text-green-400">
-      <h1 className="mb-6 text-center text-2xl">LEADERBOARD</h1>
+    <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-10 font-mono text-cyan-100">
+      <h1 className="mb-6 bg-gradient-to-r from-cyan-300 via-fuchsia-300 to-violet-400 bg-clip-text text-center text-2xl text-transparent">
+        LEADERBOARD
+      </h1>
       {error && (
         <p className="mb-4 rounded border border-red-700 bg-red-950/50 px-3 py-2 text-sm text-red-300">
           Could not load the leaderboard ({error.message}). Make sure supabase/schema.sql has
@@ -51,7 +53,7 @@ export default async function LeaderboardPage() {
         </p>
       )}
       {user && (
-        <p className="mb-4 text-sm text-green-500">
+        <p className="mb-4 text-sm text-violet-300">
           {onBoard
             ? "Your best score is on the board below."
             : personalStanding
@@ -59,48 +61,50 @@ export default async function LeaderboardPage() {
               : "Play a game to get on the leaderboard!"}
         </p>
       )}
-      <table className="w-full text-left text-sm">
-        <thead>
-          <tr className="border-b border-green-800 text-green-600">
-            <th className="py-2 pr-2">#</th>
-            <th className="py-2 pr-2">Name</th>
-            <th className="py-2 pr-2 text-right">Score</th>
-            <th className="py-2 pl-2 text-right">Date</th>
-          </tr>
-        </thead>
-        <tbody>
-          {scores?.map((row, i) => (
-            <tr
-              key={`${row.created_at}-${i}`}
-              className={`border-b border-green-950 ${row.user_id === user?.id ? "text-white" : ""}`}
-            >
-              <td className="py-2 pr-2">{i + 1}</td>
-              <td className="py-2 pr-2">
-                {row.display_name}
-                {row.user_id === user?.id && (
-                  <span className="ml-2 text-xs text-green-500">(you)</span>
-                )}
-                {row.is_guest && (
-                  <span className="ml-2 rounded bg-green-900 px-1.5 py-0.5 text-xs text-green-400">
-                    GUEST
-                  </span>
-                )}
-              </td>
-              <td className="py-2 pr-2 text-right">{row.score}</td>
-              <td className="py-2 pl-2 text-right text-green-700">
-                {new Date(row.created_at).toLocaleDateString()}
-              </td>
+      <div className="rounded-lg border border-cyan-500/20 bg-slate-950/60 p-4 shadow-[0_0_25px_rgba(34,211,238,0.08)] backdrop-blur">
+        <table className="w-full text-left text-sm">
+          <thead>
+            <tr className="border-b border-cyan-800/50 text-cyan-500">
+              <th className="py-2 pr-2">#</th>
+              <th className="py-2 pr-2">Name</th>
+              <th className="py-2 pr-2 text-right">Score</th>
+              <th className="py-2 pl-2 text-right">Date</th>
             </tr>
-          ))}
-          {(!scores || scores.length === 0) && (
-            <tr>
-              <td colSpan={4} className="py-6 text-center text-green-700">
-                No scores yet — be the first!
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {scores?.map((row, i) => (
+              <tr
+                key={`${row.created_at}-${i}`}
+                className={`border-b border-cyan-950/50 ${row.user_id === user?.id ? "text-white" : ""}`}
+              >
+                <td className="py-2 pr-2">{i + 1}</td>
+                <td className="py-2 pr-2">
+                  {row.display_name}
+                  {row.user_id === user?.id && (
+                    <span className="ml-2 text-xs text-cyan-300">(you)</span>
+                  )}
+                  {row.is_guest && (
+                    <span className="ml-2 rounded bg-fuchsia-950 px-1.5 py-0.5 text-xs text-fuchsia-300">
+                      GUEST
+                    </span>
+                  )}
+                </td>
+                <td className="py-2 pr-2 text-right">{row.score}</td>
+                <td className="py-2 pl-2 text-right text-cyan-700">
+                  {new Date(row.created_at).toLocaleDateString()}
+                </td>
+              </tr>
+            ))}
+            {(!scores || scores.length === 0) && (
+              <tr>
+                <td colSpan={4} className="py-6 text-center text-cyan-700">
+                  No scores yet — be the first!
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </main>
   );
 }

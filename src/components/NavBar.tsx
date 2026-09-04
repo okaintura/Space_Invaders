@@ -19,32 +19,35 @@ export default async function NavBar() {
   }
 
   return (
-    <header className="flex items-center justify-between border-b border-green-900 px-6 py-4 font-mono">
-      <Link href="/" className="text-lg font-bold tracking-widest text-green-400">
+    <header className="sticky top-0 z-50 flex items-center justify-between border-b border-cyan-500/20 bg-slate-950/70 px-6 py-4 font-mono backdrop-blur">
+      <Link
+        href="/"
+        className="bg-gradient-to-r from-cyan-300 via-fuchsia-300 to-violet-400 bg-clip-text text-lg font-bold tracking-widest text-transparent drop-shadow-[0_0_8px_rgba(34,211,238,0.35)]"
+      >
         SPACE INVADERS
       </Link>
-      <nav className="flex items-center gap-4 text-sm text-green-500">
-        <Link href="/play" className="hover:text-green-300">
+      <nav className="flex items-center gap-4 text-sm text-cyan-300/80">
+        <Link href="/play" className="transition hover:text-cyan-200">
           Play
         </Link>
-        <Link href="/leaderboard" className="hover:text-green-300">
+        <Link href="/leaderboard" className="transition hover:text-cyan-200">
           Leaderboard
         </Link>
         {user ? (
           <>
-            <span>{username ?? user.email}</span>
+            <span className="text-violet-300">{username ?? user.email}</span>
             <form action={signOut}>
-              <button type="submit" className="hover:text-green-300">
+              <button type="submit" className="transition hover:text-cyan-200">
                 Logout
               </button>
             </form>
           </>
         ) : (
           <>
-            <Link href="/login" className="hover:text-green-300">
+            <Link href="/login" className="transition hover:text-cyan-200">
               Login
             </Link>
-            <Link href="/register" className="hover:text-green-300">
+            <Link href="/register" className="transition hover:text-cyan-200">
               Register
             </Link>
           </>
