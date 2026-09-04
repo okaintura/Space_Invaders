@@ -18,7 +18,7 @@ export default async function PlayPage() {
   }
 
   return (
-    <main className="flex flex-1 flex-col items-center justify-center gap-6 px-4 py-10">
+    <main className="flex flex-1 flex-col items-center justify-center gap-4 overflow-hidden px-4 py-4">
       <PlayClient userId={user?.id ?? null} username={username} />
     </main>
   );

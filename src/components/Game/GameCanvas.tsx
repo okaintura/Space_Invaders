@@ -25,8 +25,16 @@ export default function GameCanvas({ onGameOver }: GameCanvasProps) {
     });
     engine.start();
 
-    const handleKeyDown = (e: KeyboardEvent) => engine.handleKeyDown(e.key);
-    const handleKeyUp = (e: KeyboardEvent) => engine.handleKeyUp(e.key);
+    const controlKeys = new Set([" ", "Spacebar", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"]);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // stop the browser's default scroll/page-down behavior for space & arrow keys
+      if (controlKeys.has(e.key)) e.preventDefault();
+      engine.handleKeyDown(e.key);
+    };
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (controlKeys.has(e.key)) e.preventDefault();
+      engine.handleKeyUp(e.key);
+    };
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
 
@@ -50,7 +58,8 @@ export default function GameCanvas({ onGameOver }: GameCanvasProps) {
         ref={canvasRef}
         width={GameEngine.WIDTH}
         height={GameEngine.HEIGHT}
-        className="border border-green-700 bg-black"
+        style={{ aspectRatio: `${GameEngine.WIDTH} / ${GameEngine.HEIGHT}` }}
+        className="max-h-[75vh] w-auto max-w-full border border-green-700 bg-black"
       />
       <p className="text-xs text-green-600">Move: Left/Right or A/D · Shoot: Space</p>
     </div>
