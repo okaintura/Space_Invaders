@@ -1,69 +1,59 @@
-import Image from "next/image";
+import Link from "next/link";
+import { createClient } from "@/lib/supabase/server";
 
-export default function Home() {
+export default async function HomePage() {
+  const supabase = await createClient();
+  const { data: topScores } = await supabase
+    .from("scores")
+    .select("display_name, score, is_guest")
+    .order("score", { ascending: false })
+    .limit(5);
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <main className="flex flex-1 flex-col items-center justify-center gap-10 px-4 py-16 font-mono text-green-400">
+      <div className="flex flex-col items-center gap-4 text-center">
+        <h1 className="text-4xl font-bold tracking-widest">SPACE INVADERS</h1>
+        <p className="max-w-md text-green-600">
+          Defend the planet. Play as a guest or register to claim your spot on the leaderboard.
+        </p>
+        <div className="flex gap-3">
+          <Link
+            href="/play"
+            className="rounded bg-green-500 px-4 py-2 font-bold text-black hover:bg-green-400"
           >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            Play now
+          </Link>
+          <Link
+            href="/register"
+            className="rounded border border-green-600 px-4 py-2 hover:border-green-400"
           >
-            Documentation
-          </a>
+            Register
+          </Link>
         </div>
-      </main>
-    </div>
+      </div>
+
+      <div className="w-full max-w-sm">
+        <h2 className="mb-3 text-center text-lg">Top 5</h2>
+        <ol className="flex flex-col gap-1 text-sm">
+          {topScores?.map((row, i) => (
+            <li key={i} className="flex justify-between border-b border-green-950 py-1">
+              <span>
+                {i + 1}. {row.display_name}
+                {row.is_guest && <span className="ml-1 text-xs text-green-700">(guest)</span>}
+              </span>
+              <span>{row.score}</span>
+            </li>
+          ))}
+          {(!topScores || topScores.length === 0) && (
+            <li className="text-center text-green-700">No scores yet</li>
+          )}
+        </ol>
+        <div className="mt-3 text-center">
+          <Link href="/leaderboard" className="text-xs underline hover:text-green-300">
+            View full leaderboard
+          </Link>
+        </div>
+      </div>
+    </main>
   );
 }
