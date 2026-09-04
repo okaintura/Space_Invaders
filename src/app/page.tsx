@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 export default async function HomePage() {
   const supabase = await createClient();
   const { data: topScores } = await supabase
-    .from("scores")
+    .from("leaderboard")
     .select("display_name, score, is_guest")
     .order("score", { ascending: false })
     .limit(5);

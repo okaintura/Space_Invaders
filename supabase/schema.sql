@@ -79,3 +79,19 @@ create policy "Users can insert their own scores, guests insert anonymously"
     or
     (is_guest = true and user_id is null)
   );
+
+-- ============================================================
+-- leaderboard: best single score per player (registered users keyed by
+-- user_id, guests keyed by display_name since they have no stable identity)
+-- ============================================================
+create or replace view public.leaderboard
+with (security_invoker = true) as
+select id, user_id, display_name, score, is_guest, created_at
+from (
+  select distinct on (coalesce(user_id::text, 'guest:' || display_name))
+    id, user_id, display_name, score, is_guest, created_at
+  from public.scores
+  order by coalesce(user_id::text, 'guest:' || display_name), score desc, created_at desc
+) best_per_player
+order by score desc;
+
