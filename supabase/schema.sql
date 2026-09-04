@@ -70,15 +70,14 @@ create policy "Scores are viewable by everyone"
   on public.scores for select
   using (true);
 
--- Registered users may only insert scores under their own user_id; guests must leave user_id null.
+-- Only logged-in users may insert scores, and only under their own user_id.
+-- Guests can view the leaderboard but their scores are never persisted.
 drop policy if exists "Users can insert their own scores, guests insert anonymously" on public.scores;
-create policy "Users can insert their own scores, guests insert anonymously"
+drop policy if exists "Only authenticated users can insert their own scores" on public.scores;
+create policy "Only authenticated users can insert their own scores"
   on public.scores for insert
-  with check (
-    (is_guest = false and user_id = auth.uid())
-    or
-    (is_guest = true and user_id is null)
-  );
+  to authenticated
+  with check (is_guest = false and user_id = auth.uid());
 
 -- ============================================================
 -- leaderboard: best single score per player (registered users keyed by
