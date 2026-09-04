@@ -2,15 +2,25 @@ import { createClient } from "@/lib/supabase/server";
 
 export default async function LeaderboardPage() {
   const supabase = await createClient();
-  const { data: scores } = await supabase
+  const { data: scores, error } = await supabase
     .from("leaderboard")
     .select("display_name, score, is_guest, created_at")
     .order("score", { ascending: false })
     .limit(50);
 
+  if (error) {
+    console.error("Failed to load leaderboard:", error.message);
+  }
+
   return (
     <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-10 font-mono text-green-400">
       <h1 className="mb-6 text-center text-2xl">LEADERBOARD</h1>
+      {error && (
+        <p className="mb-4 rounded border border-red-700 bg-red-950/50 px-3 py-2 text-sm text-red-300">
+          Could not load the leaderboard ({error.message}). Make sure supabase/schema.sql has
+          been run in your Supabase project.
+        </p>
+      )}
       <table className="w-full text-left text-sm">
         <thead>
           <tr className="border-b border-green-800 text-green-600">
