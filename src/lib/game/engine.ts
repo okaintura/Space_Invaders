@@ -9,7 +9,6 @@ type Rect = { x: number; y: number; w: number; h: number };
 type Alien = Rect & { alive: boolean; row: number };
 type Minion = Rect & { alive: boolean; fireTimer: number };
 type Asteroid = Rect & { vy: number; hp: number; maxHp: number };
-type Missile = Rect & { vx: number; vy: number };
 type Orb = Rect & { vy: number };
 type AngledBullet = Rect & { vx: number; vy: number };
 
@@ -46,7 +45,6 @@ type Boss2 = {
   laserTimer: number;
   laserCooldown: number;
   laserX: number;
-  missileCooldown: number;
   orbSpawnTimer: number;
   orbsDestroyed: number;
 };
@@ -128,10 +126,6 @@ const BOSS2_LASER_CHARGE_TIME = 1;
 const BOSS2_LASER_FIRE_TIME = 0.4;
 const BOSS2_LASER_COOLDOWN = 3.5;
 const BOSS2_LASER_WIDTH = 18;
-const BOSS2_MISSILE_COOLDOWN = 4;
-const BOSS2_MISSILE_SPEED = 150;
-const BOSS2_MISSILE_TURN_RATE = 2.5;
-const BOSS2_MISSILE_SIZE = 10;
 const BOSS2_ORB_SIZE = 20;
 const BOSS2_ORB_SPEED = 90;
 const BOSS2_ORB_SPAWN_INTERVAL = 2.6;
@@ -176,7 +170,6 @@ export class GameEngine {
   private minions: Minion[] = [];
   private asteroids: Asteroid[] = [];
   private asteroidSpawnTimer = 0;
-  private missiles: Missile[] = [];
   private orbs: Orb[] = [];
   private running = false;
   private rafId = 0;
@@ -225,7 +218,6 @@ export class GameEngine {
     this.bossBullets = [];
     this.minions = [];
     this.asteroids = [];
-    this.missiles = [];
     this.orbs = [];
     this.boss1 = null;
     this.boss2 = null;
@@ -293,7 +285,6 @@ export class GameEngine {
         laserTimer: 0,
         laserCooldown: BOSS2_LASER_COOLDOWN,
         laserX: 0,
-        missileCooldown: BOSS2_MISSILE_COOLDOWN,
         orbSpawnTimer: BOSS2_ORB_SPAWN_INTERVAL,
         orbsDestroyed: 0,
       };
@@ -725,12 +716,6 @@ export class GameEngine {
 
     if (phase >= 2) {
       this.updateBoss2Laser(boss, dt);
-
-      boss.missileCooldown -= dt;
-      if (boss.missileCooldown <= 0) {
-        this.fireBoss2Missiles(boss);
-        boss.missileCooldown = BOSS2_MISSILE_COOLDOWN;
-      }
     }
 
     if (phase === 3 && boss.orbsDestroyed < BOSS2_ORBS_REQUIRED) {
@@ -748,7 +733,6 @@ export class GameEngine {
     }
 
     this.updateAsteroids(dt);
-    this.updateMissiles(dt);
     this.updateOrbs(dt);
     this.handleBoss2Collisions(boss, phase);
   }
@@ -774,35 +758,6 @@ export class GameEngine {
         boss.laserCooldown = BOSS2_LASER_COOLDOWN;
       }
     }
-  }
-
-  private fireBoss2Missiles(boss: Boss2) {
-    for (const offset of [-1, 1]) {
-      this.missiles.push({
-        x: boss.x + boss.w / 2 - BOSS2_MISSILE_SIZE / 2 + offset * boss.w * 0.4,
-        y: boss.y + boss.h,
-        w: BOSS2_MISSILE_SIZE,
-        h: BOSS2_MISSILE_SIZE,
-        vx: offset * 40,
-        vy: 60,
-      });
-    }
-  }
-
-  private updateMissiles(dt: number) {
-    for (const m of this.missiles) {
-      const dx = this.player.x + this.player.w / 2 - (m.x + m.w / 2);
-      const dy = this.player.y - m.y;
-      const dist = Math.hypot(dx, dy) || 1;
-      const desiredVx = (dx / dist) * BOSS2_MISSILE_SPEED;
-      const desiredVy = (dy / dist) * BOSS2_MISSILE_SPEED;
-      const turn = Math.min(1, BOSS2_MISSILE_TURN_RATE * dt);
-      m.vx += (desiredVx - m.vx) * turn;
-      m.vy += (desiredVy - m.vy) * turn;
-      m.x += m.vx * dt;
-      m.y += m.vy * dt;
-    }
-    this.missiles = this.missiles.filter((m) => m.y > -50 && m.y < GAME_HEIGHT + 50);
   }
 
   private updateOrbs(dt: number) {
@@ -851,7 +806,6 @@ export class GameEngine {
     this.boss2 = null;
     this.bossBullets = [];
     this.asteroids = [];
-    this.missiles = [];
     this.orbs = [];
   }
 
@@ -860,19 +814,6 @@ export class GameEngine {
       if (bullet.y < -100) continue;
 
       let consumed = false;
-      for (const m of this.missiles) {
-        if (m.y < -100) continue;
-        if (rectsOverlap(bullet, m)) {
-          m.y = -9999;
-          consumed = true;
-          break;
-        }
-      }
-      if (consumed) {
-        bullet.y = -9999;
-        continue;
-      }
-
       for (const o of this.orbs) {
         if (o.y < -100) continue;
         if (rectsOverlap(bullet, o)) {
@@ -935,15 +876,6 @@ export class GameEngine {
           }
         }
       }
-      if (!hit) {
-        for (const m of this.missiles) {
-          if (rectsOverlap(m, this.player)) {
-            m.y = -9999;
-            hit = true;
-            break;
-          }
-        }
-      }
       if (
         !hit &&
         boss.laserState === "firing" &&
@@ -955,17 +887,7 @@ export class GameEngine {
       if (hit) this.loseLife();
     }
 
-    // asteroids also detonate any missile they collide with
-    for (const a of this.asteroids) {
-      if (a.y < -200) continue;
-      for (const m of this.missiles) {
-        if (m.y < -100) continue;
-        if (rectsOverlap(a, m)) m.y = -9999;
-      }
-    }
-
     this.asteroids = this.asteroids.filter((a) => a.y < GAME_HEIGHT + 500 && a.hp > 0);
-    this.missiles = this.missiles.filter((m) => m.y > -50 && m.y < GAME_HEIGHT + 50);
     this.orbs = this.orbs.filter((o) => o.y > -50 && o.y < GAME_HEIGHT + 50);
     this.bossBullets = this.bossBullets.filter(
       (b) => b.x > -50 && b.x < GAME_WIDTH + 50 && b.y > -50 && b.y < GAME_HEIGHT + 50,
@@ -1019,9 +941,6 @@ export class GameEngine {
         }
       }
     }
-
-    ctx.fillStyle = "#ff8844";
-    for (const m of this.missiles) ctx.fillRect(m.x, m.y, m.w, m.h);
 
     const orbPulse = 0.6 + Math.sin(performance.now() / 150) * 0.4;
     ctx.fillStyle = `rgba(102, 255, 255, ${orbPulse.toFixed(2)})`;
