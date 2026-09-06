@@ -85,6 +85,11 @@ const INVULNERABILITY_MS = 1500;
 
 const BOSS_WAVE_INTERVAL = 5;
 const BOSS_ATTACK_GAP = 2;
+const BOSS_WARNING_TIME = 2.5;
+const BOSS_CLEAR_EXPLOSION_TIME = 1.2;
+const BOSS_CLEAR_REST_TIME = 1.5;
+const BOSS_CLEAR_TOTAL_TIME = BOSS_CLEAR_EXPLOSION_TIME + BOSS_CLEAR_REST_TIME;
+const EXPLOSION_PARTICLE_COUNT = 40;
 
 const BOSS1_WIDTH = 140;
 const BOSS1_HEIGHT = 50;
@@ -162,7 +167,10 @@ export class GameEngine {
   private score = 0;
   private lives = STARTING_LIVES;
   private wave = 1;
-  private waveKind: "normal" | "boss1" | "boss2" = "normal";
+  private waveKind: "normal" | "boss1" | "boss2" | "warning" | "clear" = "normal";
+  private pendingBossKind: "boss1" | "boss2" = "boss1";
+  private transitionTimer = 0;
+  private explosionParticles: { x: number; y: number; vx: number; vy: number; life: number; maxLife: number }[] = [];
   private boss1: Boss1 | null = null;
   private boss2: Boss2 | null = null;
   private minions: Minion[] = [];
@@ -224,8 +232,9 @@ export class GameEngine {
 
     if (this.wave % BOSS_WAVE_INTERVAL === 0) {
       const bossNumber = this.wave / BOSS_WAVE_INTERVAL;
-      this.waveKind = bossNumber % 2 === 1 ? "boss2" : "boss1";
-      this.spawnBoss();
+      this.pendingBossKind = bossNumber % 2 === 1 ? "boss2" : "boss1";
+      this.waveKind = "warning";
+      this.transitionTimer = BOSS_WARNING_TIME;
       return;
     }
 
@@ -292,6 +301,35 @@ export class GameEngine {
     }
   }
 
+  private startBossClearTransition(x: number, y: number, w: number, h: number) {
+    const cx = x + w / 2;
+    const cy = y + h / 2;
+    this.explosionParticles = [];
+    for (let i = 0; i < EXPLOSION_PARTICLE_COUNT; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 60 + Math.random() * 180;
+      this.explosionParticles.push({
+        x: cx,
+        y: cy,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: BOSS_CLEAR_EXPLOSION_TIME,
+        maxLife: BOSS_CLEAR_EXPLOSION_TIME,
+      });
+    }
+    this.waveKind = "clear";
+    this.transitionTimer = BOSS_CLEAR_TOTAL_TIME;
+  }
+
+  private updateExplosionParticles(dt: number) {
+    for (const p of this.explosionParticles) {
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.life -= dt;
+    }
+    this.explosionParticles = this.explosionParticles.filter((p) => p.life > 0);
+  }
+
   private loop = (time: number) => {
     if (!this.running) return;
     const dt = Math.min((time - this.lastTime) / 1000, 0.05);
@@ -304,6 +342,26 @@ export class GameEngine {
   private update(dt: number) {
     this.updatePlayer(dt);
     this.updateBullets(dt);
+
+    if (this.waveKind === "warning") {
+      this.transitionTimer -= dt;
+      if (this.transitionTimer <= 0) {
+        this.waveKind = this.pendingBossKind;
+        this.spawnBoss();
+      }
+      return;
+    }
+
+    if (this.waveKind === "clear") {
+      this.updateExplosionParticles(dt);
+      this.transitionTimer -= dt;
+      if (this.transitionTimer <= 0) {
+        this.wave += 1;
+        this.callbacks.onWaveChange?.(this.wave);
+        this.spawnWave();
+      }
+      return;
+    }
 
     if (this.waveKind === "boss1") {
       this.updateBoss1(dt);
@@ -596,12 +654,10 @@ export class GameEngine {
     if (boss.health <= 0) {
       this.score += BOSS1_KILL_SCORE;
       this.callbacks.onScoreChange?.(this.score);
+      this.startBossClearTransition(boss.x, boss.y, boss.w, boss.h);
       this.boss1 = null;
       this.minions = [];
       this.bossBullets = [];
-      this.wave += 1;
-      this.callbacks.onWaveChange?.(this.wave);
-      this.spawnWave();
     }
   }
 
@@ -788,16 +844,15 @@ export class GameEngine {
   }
 
   private defeatBoss2() {
+    const boss = this.boss2;
     this.score += BOSS2_KILL_SCORE;
     this.callbacks.onScoreChange?.(this.score);
+    if (boss) this.startBossClearTransition(boss.x, boss.y, boss.w, boss.h);
     this.boss2 = null;
     this.bossBullets = [];
     this.asteroids = [];
     this.missiles = [];
     this.orbs = [];
-    this.wave += 1;
-    this.callbacks.onWaveChange?.(this.wave);
-    this.spawnWave();
   }
 
   private handleBoss2Collisions(boss: Boss2, phase: number) {
@@ -941,6 +996,8 @@ export class GameEngine {
 
     if (this.waveKind === "boss1" && this.boss1) this.renderBoss1(this.boss1);
     if (this.waveKind === "boss2" && this.boss2) this.renderBoss2(this.boss2);
+    if (this.waveKind === "warning") this.renderBossWarning();
+    if (this.waveKind === "clear") this.renderBossClear();
 
     ctx.fillStyle = "#9a9a9a";
     for (const a of this.asteroids) {
@@ -1051,6 +1108,43 @@ export class GameEngine {
 
     const barWidth = 100;
     this.renderHealthBar(boss.x + boss.w / 2 - barWidth / 2, boss.y - 14, barWidth, boss.health, boss.maxHealth, "RIVAL");
+  }
+
+  private renderBossWarning() {
+    const ctx = this.ctx;
+    const flash = Math.floor(performance.now() / 200) % 2 === 0;
+    ctx.strokeStyle = flash ? "#ff2222" : "#661111";
+    ctx.lineWidth = 8;
+    ctx.strokeRect(4, 4, GAME_WIDTH - 8, GAME_HEIGHT - 8);
+
+    const label = this.pendingBossKind === "boss1" ? "MOTHERSHIP" : "RIVAL";
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#ff3333";
+    ctx.font = "bold 22px monospace";
+    ctx.fillText("WARNING", GAME_WIDTH / 2, GAME_HEIGHT / 2 - 16);
+    ctx.font = "bold 14px monospace";
+    ctx.fillText(`${label} INCOMING`, GAME_WIDTH / 2, GAME_HEIGHT / 2 + 10);
+    ctx.textAlign = "left";
+  }
+
+  private renderBossClear() {
+    const ctx = this.ctx;
+    ctx.fillStyle = "#ffcc66";
+    for (const p of this.explosionParticles) {
+      ctx.globalAlpha = Math.max(0, p.life / p.maxLife);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    if (this.transitionTimer < BOSS_CLEAR_REST_TIME) {
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#66ff99";
+      ctx.font = "bold 20px monospace";
+      ctx.fillText("WAVE CLEAR", GAME_WIDTH / 2, GAME_HEIGHT / 2);
+      ctx.textAlign = "left";
+    }
   }
 
   private renderHealthBar(x: number, y: number, w: number, health: number, maxHealth: number, label: string) {
