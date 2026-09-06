@@ -38,6 +38,8 @@ type Boss2 = {
   shieldTimer: number;
   fireTimer: number;
   bobAngle: number;
+  wanderOffset: number;
+  wanderTimer: number;
 };
 
 const GAME_WIDTH = 480;
@@ -85,7 +87,7 @@ const BOSS1_SPREAD_COUNT = 6;
 const BOSS1_SUMMON_COUNT = 3;
 const BOSS1_BULLET_SPEED = 200;
 const BOSS1_KILL_SCORE = 1000;
-const BOSS1_RAGE_HEALTH_RATIO = 0.5;
+const BOSS1_RAGE_HEALTH_RATIO = 0.35;
 const BOSS1_RAGE_SPEED_MULTIPLIER = 1.6;
 const BOSS1_RAGE_ATTACK_GAP = 1;
 const BOSS1_RAGE_TELEGRAPH_MULTIPLIER = 0.6;
@@ -94,8 +96,12 @@ const BOSS1_RAGE_BULLET_SPEED_MULTIPLIER = 1.3;
 
 const BOSS2_WIDTH = 34;
 const BOSS2_HEIGHT = 22;
-const BOSS2_MAX_HEALTH = 10;
+const BOSS2_MAX_HEALTH = 12;
 const BOSS2_SPEED = 140;
+const BOSS2_WANDER_INTERVAL = 1.2;
+const BOSS2_DODGE_SPEED = 260;
+const BOSS2_DODGE_LOOKAHEAD = 110;
+const BOSS2_DODGE_MARGIN = 26;
 const BOSS2_SHIELD_TIME = 1.5;
 const BOSS2_FIRE_INTERVAL = 1.2;
 const BOSS2_BULLET_SPEED = 200;
@@ -190,7 +196,7 @@ export class GameEngine {
 
     if (this.wave % BOSS_WAVE_INTERVAL === 0) {
       const bossNumber = this.wave / BOSS_WAVE_INTERVAL;
-      this.waveKind = bossNumber % 2 === 1 ? "boss1" : "boss2";
+      this.waveKind = bossNumber % 2 === 1 ? "boss2" : "boss1";
       this.spawnBoss();
       return;
     }
@@ -244,6 +250,8 @@ export class GameEngine {
         shieldTimer: 0,
         fireTimer: BOSS2_FIRE_INTERVAL,
         bobAngle: 0,
+        wanderOffset: 0,
+        wanderTimer: BOSS2_WANDER_INTERVAL,
       };
       this.asteroidSpawnTimer = ASTEROID_SPAWN_INTERVAL;
     }
@@ -383,7 +391,7 @@ export class GameEngine {
   }
 
   // ============================================================
-  // Boss 1: battleship — laser / spread-shot / summon attack cycle
+  // Boss 1: mothership — laser / spread-shot / summon attack cycle
   // ============================================================
   private updateBoss1(dt: number) {
     const boss = this.boss1;
@@ -572,10 +580,31 @@ export class GameEngine {
     boss.bobAngle += dt;
     boss.y = 90 + Math.sin(boss.bobAngle) * 40;
 
-    const targetX = this.player.x + this.player.w / 2 - boss.w / 2;
-    const maxStep = BOSS2_SPEED * dt;
-    const dx = Math.max(-maxStep, Math.min(maxStep, targetX - boss.x));
-    boss.x = Math.max(0, Math.min(GAME_WIDTH - boss.w, boss.x + dx));
+    // dodge incoming player bullets instead of always sitting directly above the player
+    let dodgeDir = 0;
+    for (const b of this.playerBullets) {
+      if (b.y > boss.y + boss.h || b.y < boss.y - BOSS2_DODGE_LOOKAHEAD) continue;
+      const bulletCenter = b.x + b.w / 2;
+      const bossCenter = boss.x + boss.w / 2;
+      if (Math.abs(bulletCenter - bossCenter) < boss.w / 2 + BOSS2_DODGE_MARGIN) {
+        dodgeDir = bulletCenter < bossCenter ? 1 : -1;
+        break;
+      }
+    }
+
+    if (dodgeDir !== 0) {
+      boss.x += dodgeDir * BOSS2_DODGE_SPEED * dt;
+    } else {
+      boss.wanderTimer -= dt;
+      if (boss.wanderTimer <= 0) {
+        boss.wanderOffset = (Math.random() * 2 - 1) * 100;
+        boss.wanderTimer = BOSS2_WANDER_INTERVAL;
+      }
+      const targetX = this.player.x + this.player.w / 2 - boss.w / 2 + boss.wanderOffset;
+      const maxStep = BOSS2_SPEED * dt;
+      boss.x += Math.max(-maxStep, Math.min(maxStep, targetX - boss.x));
+    }
+    boss.x = Math.max(0, Math.min(GAME_WIDTH - boss.w, boss.x));
 
     if (boss.shielded) {
       boss.shieldTimer -= dt;
@@ -765,7 +794,7 @@ export class GameEngine {
       boss.w,
       boss.health,
       boss.maxHealth,
-      boss.enraged ? "BATTLESHIP — RAGE" : "BATTLESHIP",
+      boss.enraged ? "MOTHERSHIP — OVERDRIVE" : "MOTHERSHIP",
     );
   }
 
