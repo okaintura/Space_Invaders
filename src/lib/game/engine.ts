@@ -8,7 +8,9 @@ export type GameCallbacks = {
 type Rect = { x: number; y: number; w: number; h: number };
 type Alien = Rect & { alive: boolean; row: number };
 type Minion = Rect & { alive: boolean; fireTimer: number };
-type Asteroid = Rect & { vy: number };
+type Asteroid = Rect & { vy: number; hp: number; maxHp: number };
+type Missile = Rect & { vx: number; vy: number };
+type Orb = Rect & { vy: number };
 type AngledBullet = Rect & { vx: number; vy: number };
 
 type Boss1Phase = "telegraph" | "acting" | "cooldown";
@@ -40,6 +42,13 @@ type Boss2 = {
   bobAngle: number;
   wanderOffset: number;
   wanderTimer: number;
+  laserState: "idle" | "charging" | "firing";
+  laserTimer: number;
+  laserCooldown: number;
+  laserX: number;
+  missileCooldown: number;
+  orbSpawnTimer: number;
+  orbsDestroyed: number;
 };
 
 const GAME_WIDTH = 480;
@@ -96,23 +105,38 @@ const BOSS1_RAGE_BULLET_SPEED_MULTIPLIER = 1.3;
 
 const BOSS2_WIDTH = 34;
 const BOSS2_HEIGHT = 22;
-const BOSS2_MAX_HEALTH = 12;
+const BOSS2_MAX_HEALTH = 5;
 const BOSS2_SPEED = 140;
 const BOSS2_WANDER_INTERVAL = 1.2;
 const BOSS2_DODGE_SPEED = 260;
 const BOSS2_DODGE_LOOKAHEAD = 110;
 const BOSS2_DODGE_MARGIN = 26;
-const BOSS2_SHIELD_TIME = 1.5;
+const BOSS2_SHIELD_TIME = 5;
 const BOSS2_FIRE_INTERVAL = 1.2;
 const BOSS2_BULLET_SPEED = 200;
 const BOSS2_BURST_COUNT = 8;
 const BOSS2_BURST_SPEED = 150;
 const BOSS2_KILL_SCORE = 500;
+const BOSS2_LASER_HEALTH_THRESHOLD = 2;
+const BOSS2_FINAL_HEALTH_THRESHOLD = 1;
+const BOSS2_LASER_CHARGE_TIME = 1;
+const BOSS2_LASER_FIRE_TIME = 0.4;
+const BOSS2_LASER_COOLDOWN = 3.5;
+const BOSS2_LASER_WIDTH = 18;
+const BOSS2_MISSILE_COOLDOWN = 4;
+const BOSS2_MISSILE_SPEED = 150;
+const BOSS2_MISSILE_TURN_RATE = 2.5;
+const BOSS2_MISSILE_SIZE = 10;
+const BOSS2_ORB_SIZE = 20;
+const BOSS2_ORB_SPEED = 90;
+const BOSS2_ORB_SPAWN_INTERVAL = 1.4;
+const BOSS2_ORBS_REQUIRED = 4;
 const ASTEROID_SPAWN_INTERVAL = 0.8;
 const ASTEROID_MIN_SPEED = 70;
 const ASTEROID_MAX_SPEED = 160;
 const ASTEROID_MIN_SIZE = 18;
 const ASTEROID_MAX_SIZE = 36;
+const ASTEROID_HIT_POINTS = 3;
 
 function rectsOverlap(a: Rect, b: Rect) {
   return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
@@ -144,6 +168,8 @@ export class GameEngine {
   private minions: Minion[] = [];
   private asteroids: Asteroid[] = [];
   private asteroidSpawnTimer = 0;
+  private missiles: Missile[] = [];
+  private orbs: Orb[] = [];
   private running = false;
   private rafId = 0;
   private lastTime = 0;
@@ -191,6 +217,8 @@ export class GameEngine {
     this.bossBullets = [];
     this.minions = [];
     this.asteroids = [];
+    this.missiles = [];
+    this.orbs = [];
     this.boss1 = null;
     this.boss2 = null;
 
@@ -252,6 +280,13 @@ export class GameEngine {
         bobAngle: 0,
         wanderOffset: 0,
         wanderTimer: BOSS2_WANDER_INTERVAL,
+        laserState: "idle",
+        laserTimer: 0,
+        laserCooldown: BOSS2_LASER_COOLDOWN,
+        laserX: 0,
+        missileCooldown: BOSS2_MISSILE_COOLDOWN,
+        orbSpawnTimer: BOSS2_ORB_SPAWN_INTERVAL,
+        orbsDestroyed: 0,
       };
       this.asteroidSpawnTimer = ASTEROID_SPAWN_INTERVAL;
     }
@@ -577,6 +612,8 @@ export class GameEngine {
     const boss = this.boss2;
     if (!boss) return;
 
+    const phase = boss.health <= BOSS2_FINAL_HEALTH_THRESHOLD ? 3 : boss.health <= BOSS2_LASER_HEALTH_THRESHOLD ? 2 : 1;
+
     boss.bobAngle += dt;
     boss.y = 90 + Math.sin(boss.bobAngle) * 40;
 
@@ -606,7 +643,10 @@ export class GameEngine {
     }
     boss.x = Math.max(0, Math.min(GAME_WIDTH - boss.w, boss.x));
 
-    if (boss.shielded) {
+    if (phase === 3) {
+      // shield stays up permanently in the final phase; only the orbs can break it
+      boss.shielded = true;
+    } else if (boss.shielded) {
       boss.shieldTimer -= dt;
       if (boss.shieldTimer <= 0) boss.shielded = false;
     }
@@ -627,8 +667,91 @@ export class GameEngine {
       boss.fireTimer = BOSS2_FIRE_INTERVAL;
     }
 
+    if (phase >= 2) {
+      this.updateBoss2Laser(boss, dt);
+
+      boss.missileCooldown -= dt;
+      if (boss.missileCooldown <= 0) {
+        this.fireBoss2Missiles(boss);
+        boss.missileCooldown = BOSS2_MISSILE_COOLDOWN;
+      }
+    }
+
+    if (phase === 3 && boss.orbsDestroyed < BOSS2_ORBS_REQUIRED) {
+      boss.orbSpawnTimer -= dt;
+      if (boss.orbSpawnTimer <= 0) {
+        this.orbs.push({
+          x: Math.random() * (GAME_WIDTH - BOSS2_ORB_SIZE),
+          y: -BOSS2_ORB_SIZE,
+          w: BOSS2_ORB_SIZE,
+          h: BOSS2_ORB_SIZE,
+          vy: BOSS2_ORB_SPEED,
+        });
+        boss.orbSpawnTimer = BOSS2_ORB_SPAWN_INTERVAL;
+      }
+    }
+
     this.updateAsteroids(dt);
-    this.handleBoss2Collisions(boss);
+    this.updateMissiles(dt);
+    this.updateOrbs(dt);
+    this.handleBoss2Collisions(boss, phase);
+  }
+
+  private updateBoss2Laser(boss: Boss2, dt: number) {
+    if (boss.laserState === "idle") {
+      boss.laserCooldown -= dt;
+      if (boss.laserCooldown <= 0) {
+        boss.laserState = "charging";
+        boss.laserTimer = BOSS2_LASER_CHARGE_TIME;
+        boss.laserX = this.player.x + this.player.w / 2;
+      }
+    } else if (boss.laserState === "charging") {
+      boss.laserTimer -= dt;
+      if (boss.laserTimer <= 0) {
+        boss.laserState = "firing";
+        boss.laserTimer = BOSS2_LASER_FIRE_TIME;
+      }
+    } else if (boss.laserState === "firing") {
+      boss.laserTimer -= dt;
+      if (boss.laserTimer <= 0) {
+        boss.laserState = "idle";
+        boss.laserCooldown = BOSS2_LASER_COOLDOWN;
+      }
+    }
+  }
+
+  private fireBoss2Missiles(boss: Boss2) {
+    for (const offset of [-1, 1]) {
+      this.missiles.push({
+        x: boss.x + boss.w / 2 - BOSS2_MISSILE_SIZE / 2 + offset * boss.w * 0.4,
+        y: boss.y + boss.h,
+        w: BOSS2_MISSILE_SIZE,
+        h: BOSS2_MISSILE_SIZE,
+        vx: offset * 40,
+        vy: 60,
+      });
+    }
+  }
+
+  private updateMissiles(dt: number) {
+    for (const m of this.missiles) {
+      const dx = this.player.x + this.player.w / 2 - (m.x + m.w / 2);
+      const dy = this.player.y - m.y;
+      const dist = Math.hypot(dx, dy) || 1;
+      const desiredVx = (dx / dist) * BOSS2_MISSILE_SPEED;
+      const desiredVy = (dy / dist) * BOSS2_MISSILE_SPEED;
+      const turn = Math.min(1, BOSS2_MISSILE_TURN_RATE * dt);
+      m.vx += (desiredVx - m.vx) * turn;
+      m.vy += (desiredVy - m.vy) * turn;
+      m.x += m.vx * dt;
+      m.y += m.vy * dt;
+    }
+    this.missiles = this.missiles.filter((m) => m.y > -50 && m.y < GAME_HEIGHT + 50);
+  }
+
+  private updateOrbs(dt: number) {
+    for (const o of this.orbs) o.y += o.vy * dt;
+    this.orbs = this.orbs.filter((o) => o.y < GAME_HEIGHT + 50);
   }
 
   private updateAsteroids(dt: number) {
@@ -641,6 +764,8 @@ export class GameEngine {
         w: size,
         h: size,
         vy: ASTEROID_MIN_SPEED + Math.random() * (ASTEROID_MAX_SPEED - ASTEROID_MIN_SPEED),
+        hp: ASTEROID_HIT_POINTS,
+        maxHp: ASTEROID_HIT_POINTS,
       });
       this.asteroidSpawnTimer = ASTEROID_SPAWN_INTERVAL;
     }
@@ -662,22 +787,75 @@ export class GameEngine {
     }
   }
 
-  private handleBoss2Collisions(boss: Boss2) {
+  private defeatBoss2() {
+    this.score += BOSS2_KILL_SCORE;
+    this.callbacks.onScoreChange?.(this.score);
+    this.boss2 = null;
+    this.bossBullets = [];
+    this.asteroids = [];
+    this.missiles = [];
+    this.orbs = [];
+    this.wave += 1;
+    this.callbacks.onWaveChange?.(this.wave);
+    this.spawnWave();
+  }
+
+  private handleBoss2Collisions(boss: Boss2, phase: number) {
     for (const bullet of this.playerBullets) {
       if (bullet.y < -100) continue;
+
+      let consumed = false;
+      for (const m of this.missiles) {
+        if (m.y < -100) continue;
+        if (rectsOverlap(bullet, m)) {
+          m.y = -9999;
+          consumed = true;
+          break;
+        }
+      }
+      if (consumed) {
+        bullet.y = -9999;
+        continue;
+      }
+
+      for (const o of this.orbs) {
+        if (o.y < -100) continue;
+        if (rectsOverlap(bullet, o)) {
+          o.y = -9999;
+          boss.orbsDestroyed += 1;
+          consumed = true;
+          break;
+        }
+      }
+      if (consumed) {
+        bullet.y = -9999;
+        if (boss.orbsDestroyed >= BOSS2_ORBS_REQUIRED) {
+          this.defeatBoss2();
+          return;
+        }
+        continue;
+      }
+
+      for (const a of this.asteroids) {
+        if (a.y < -200) continue;
+        if (rectsOverlap(bullet, a)) {
+          a.hp -= 1;
+          consumed = true;
+          if (a.hp <= 0) a.y = GAME_HEIGHT + 999;
+          break;
+        }
+      }
+      if (consumed) {
+        bullet.y = -9999;
+        continue;
+      }
+
       if (rectsOverlap(bullet, boss)) {
         bullet.y = -9999;
         if (!boss.shielded) {
           boss.health -= 1;
           if (boss.health <= 0) {
-            this.score += BOSS2_KILL_SCORE;
-            this.callbacks.onScoreChange?.(this.score);
-            this.boss2 = null;
-            this.bossBullets = [];
-            this.asteroids = [];
-            this.wave += 1;
-            this.callbacks.onWaveChange?.(this.wave);
-            this.spawnWave();
+            this.defeatBoss2();
             return;
           }
           boss.shielded = true;
@@ -706,9 +884,38 @@ export class GameEngine {
           }
         }
       }
+      if (!hit) {
+        for (const m of this.missiles) {
+          if (rectsOverlap(m, this.player)) {
+            m.y = -9999;
+            hit = true;
+            break;
+          }
+        }
+      }
+      if (
+        !hit &&
+        boss.laserState === "firing" &&
+        this.player.x + this.player.w > boss.laserX - BOSS2_LASER_WIDTH / 2 &&
+        this.player.x < boss.laserX + BOSS2_LASER_WIDTH / 2
+      ) {
+        hit = true;
+      }
       if (hit) this.loseLife();
     }
-    this.asteroids = this.asteroids.filter((a) => a.y < GAME_HEIGHT + 500);
+
+    // asteroids also detonate any missile they collide with
+    for (const a of this.asteroids) {
+      if (a.y < -200) continue;
+      for (const m of this.missiles) {
+        if (m.y < -100) continue;
+        if (rectsOverlap(a, m)) m.y = -9999;
+      }
+    }
+
+    this.asteroids = this.asteroids.filter((a) => a.y < GAME_HEIGHT + 500 && a.hp > 0);
+    this.missiles = this.missiles.filter((m) => m.y > -50 && m.y < GAME_HEIGHT + 50);
+    this.orbs = this.orbs.filter((o) => o.y > -50 && o.y < GAME_HEIGHT + 50);
     this.bossBullets = this.bossBullets.filter(
       (b) => b.x > -50 && b.x < GAME_WIDTH + 50 && b.y > -50 && b.y < GAME_HEIGHT + 50,
     );
@@ -743,6 +950,31 @@ export class GameEngine {
     for (const a of this.asteroids) {
       ctx.beginPath();
       ctx.arc(a.x + a.w / 2, a.y + a.h / 2, a.w / 2, 0, Math.PI * 2);
+      ctx.fill();
+      if (a.hp < a.maxHp) {
+        ctx.strokeStyle = "#3a3a3a";
+        ctx.lineWidth = 1;
+        const cracks = a.maxHp - a.hp;
+        const cx = a.x + a.w / 2;
+        const cy = a.y + a.h / 2;
+        for (let i = 0; i < cracks; i++) {
+          const angle = (i / a.maxHp) * Math.PI * 2 + a.x;
+          ctx.beginPath();
+          ctx.moveTo(cx, cy);
+          ctx.lineTo(cx + Math.cos(angle) * a.w / 2, cy + Math.sin(angle) * a.h / 2);
+          ctx.stroke();
+        }
+      }
+    }
+
+    ctx.fillStyle = "#ff8844";
+    for (const m of this.missiles) ctx.fillRect(m.x, m.y, m.w, m.h);
+
+    const orbPulse = 0.6 + Math.sin(performance.now() / 150) * 0.4;
+    ctx.fillStyle = `rgba(102, 255, 255, ${orbPulse.toFixed(2)})`;
+    for (const o of this.orbs) {
+      ctx.beginPath();
+      ctx.arc(o.x + o.w / 2, o.y + o.h / 2, o.w / 2, 0, Math.PI * 2);
       ctx.fill();
     }
 
@@ -800,11 +1032,21 @@ export class GameEngine {
 
   private renderBoss2(boss: Boss2) {
     const ctx = this.ctx;
+    const shake = boss.laserState === "charging" ? Math.sin(performance.now() / 25) * 3 : 0;
+
     ctx.fillStyle = "#ff5577";
-    ctx.fillRect(boss.x, boss.y, boss.w, boss.h);
+    ctx.fillRect(boss.x + shake, boss.y, boss.w, boss.h);
+
+    if (boss.laserState === "charging") {
+      ctx.fillStyle = "rgba(255,40,40,0.25)";
+      ctx.fillRect(boss.laserX - BOSS2_LASER_WIDTH / 2, boss.y + boss.h, BOSS2_LASER_WIDTH, GAME_HEIGHT - (boss.y + boss.h));
+    } else if (boss.laserState === "firing") {
+      ctx.fillStyle = "rgba(255,20,20,0.9)";
+      ctx.fillRect(boss.laserX - BOSS2_LASER_WIDTH / 2, boss.y + boss.h, BOSS2_LASER_WIDTH, GAME_HEIGHT - (boss.y + boss.h));
+    }
 
     if (boss.shielded) {
-      ctx.strokeStyle = "#66ffff";
+      ctx.strokeStyle = boss.health <= BOSS2_FINAL_HEALTH_THRESHOLD ? "#ff66ff" : "#66ffff";
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.arc(boss.x + boss.w / 2, boss.y + boss.h / 2, Math.max(boss.w, boss.h) * 0.9, 0, Math.PI * 2);
