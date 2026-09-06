@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import GameCanvas from "@/components/Game/GameCanvas";
 import NicknamePrompt from "@/components/NicknamePrompt";
+import DevStageSelector from "@/components/DevStageSelector";
 import { createClient } from "@/lib/supabase/client";
 
 const GUEST_NAME_KEY = "space-invaders-guest-name";
@@ -26,13 +27,15 @@ type GameResult = {
 type PlayClientProps = {
   userId: string | null;
   username: string | null;
+  isDev: boolean;
 };
 
-export default function PlayClient({ userId, username }: PlayClientProps) {
+export default function PlayClient({ userId, username, isDev }: PlayClientProps) {
   const [guestName, setGuestName] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [result, setResult] = useState<GameResult | null>(null);
   const [gameKey, setGameKey] = useState(0);
+  const [devWave, setDevWave] = useState<number | null>(null);
 
   useEffect(() => {
     if (userId) {
@@ -97,6 +100,7 @@ export default function PlayClient({ userId, username }: PlayClientProps) {
 
   const handlePlayAgain = () => {
     setResult(null);
+    setDevWave(null);
     setGameKey((k) => k + 1);
   };
 
@@ -167,5 +171,9 @@ export default function PlayClient({ userId, username }: PlayClientProps) {
     );
   }
 
-  return <GameCanvas key={gameKey} onGameOver={handleGameOver} />;
+  if (isDev && devWave === null) {
+    return <DevStageSelector onSelect={setDevWave} />;
+  }
+
+  return <GameCanvas key={gameKey} onGameOver={handleGameOver} startWave={devWave ?? undefined} />;
 }

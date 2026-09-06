@@ -5,24 +5,29 @@ import { GameEngine } from "@/lib/game/engine";
 
 type GameCanvasProps = {
   onGameOver: (score: number) => void;
+  startWave?: number;
 };
 
-export default function GameCanvas({ onGameOver }: GameCanvasProps) {
+export default function GameCanvas({ onGameOver, startWave }: GameCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [score, setScore] = useState(0);
   const [lives, setLives] = useState(3);
-  const [wave, setWave] = useState(1);
+  const [wave, setWave] = useState(startWave ?? 1);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const engine = new GameEngine(canvas, {
-      onScoreChange: setScore,
-      onLivesChange: setLives,
-      onWaveChange: setWave,
-      onGameOver,
-    });
+    const engine = new GameEngine(
+      canvas,
+      {
+        onScoreChange: setScore,
+        onLivesChange: setLives,
+        onWaveChange: setWave,
+        onGameOver,
+      },
+      { startWave },
+    );
     engine.start();
 
     const controlKeys = new Set([" ", "Spacebar", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"]);

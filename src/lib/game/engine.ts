@@ -24,6 +24,7 @@ type Boss1 = {
   phaseTimer: number;
   attackIndex: number;
   laserThird: number;
+  enraged: boolean;
 };
 
 type Boss2 = {
@@ -63,7 +64,8 @@ const ALIEN_TOP_MARGIN = 60;
 const ALIEN_SIDE_MARGIN = 24;
 const ALIEN_STEP_DOWN = 18;
 const ALIEN_BASE_SPEED = 40;
-const ALIEN_WAVE_SPEED_STEP = 8;
+const ALIEN_WAVE_SPEED_STEP = 4;
+const ALIEN_SPEED_RAMP_CAP = 0.5;
 const ALIEN_FIRE_INTERVAL_BASE = 1.1;
 
 const STARTING_LIVES = 3;
@@ -75,7 +77,7 @@ const BOSS_ATTACK_GAP = 2;
 
 const BOSS1_WIDTH = 140;
 const BOSS1_HEIGHT = 50;
-const BOSS1_MAX_HEALTH = 50;
+const BOSS1_MAX_HEALTH = 100;
 const BOSS1_SPEED = 60;
 const BOSS1_LASER_TELEGRAPH_TIME = 1;
 const BOSS1_LASER_FIRE_TIME = 0.6;
@@ -83,6 +85,12 @@ const BOSS1_SPREAD_COUNT = 6;
 const BOSS1_SUMMON_COUNT = 3;
 const BOSS1_BULLET_SPEED = 200;
 const BOSS1_KILL_SCORE = 1000;
+const BOSS1_RAGE_HEALTH_RATIO = 0.5;
+const BOSS1_RAGE_SPEED_MULTIPLIER = 1.6;
+const BOSS1_RAGE_ATTACK_GAP = 1;
+const BOSS1_RAGE_TELEGRAPH_MULTIPLIER = 0.6;
+const BOSS1_RAGE_SPREAD_COUNT = 10;
+const BOSS1_RAGE_BULLET_SPEED_MULTIPLIER = 1.3;
 
 const BOSS2_WIDTH = 34;
 const BOSS2_HEIGHT = 22;
@@ -136,11 +144,12 @@ export class GameEngine {
   private keys = new Set<string>();
   private invulnerableUntil = 0;
 
-  constructor(canvas: HTMLCanvasElement, callbacks: GameCallbacks = {}) {
+  constructor(canvas: HTMLCanvasElement, callbacks: GameCallbacks = {}, options: { startWave?: number } = {}) {
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("Canvas 2D context unavailable");
     this.ctx = ctx;
     this.callbacks = callbacks;
+    this.wave = Math.max(1, Math.floor(options.startWave ?? 1));
     this.resetPlayer();
     this.spawnWave();
   }
@@ -221,6 +230,7 @@ export class GameEngine {
         phaseTimer: BOSS_ATTACK_GAP,
         attackIndex: 0,
         laserThird: 0,
+        enraged: false,
       };
     } else {
       this.boss2 = {
@@ -329,7 +339,7 @@ export class GameEngine {
     }
 
     const total = ALIEN_ROWS * ALIEN_COLS;
-    const speedRamp = 1 + (total - aliveAliens.length) / total;
+    const speedRamp = 1 + ((total - aliveAliens.length) / total) * ALIEN_SPEED_RAMP_CAP;
     this.alienSpeed = (ALIEN_BASE_SPEED + this.wave * ALIEN_WAVE_SPEED_STEP) * speedRamp;
 
     this.fireTimer -= dt;
@@ -379,7 +389,12 @@ export class GameEngine {
     const boss = this.boss1;
     if (!boss) return;
 
-    boss.x += boss.dir * BOSS1_SPEED * dt;
+    if (!boss.enraged && boss.health <= boss.maxHealth * BOSS1_RAGE_HEALTH_RATIO) {
+      boss.enraged = true;
+    }
+
+    const speed = boss.enraged ? BOSS1_SPEED * BOSS1_RAGE_SPEED_MULTIPLIER : BOSS1_SPEED;
+    boss.x += boss.dir * speed * dt;
     if (boss.x <= 20 || boss.x + boss.w >= GAME_WIDTH - 20) boss.dir *= -1;
     boss.x = Math.max(20, Math.min(GAME_WIDTH - 20 - boss.w, boss.x));
 
@@ -400,7 +415,7 @@ export class GameEngine {
         if (boss.attackIndex % 3 === 0) this.checkLaserHit(boss);
         if (boss.phaseTimer <= 0) {
           boss.phase = "cooldown";
-          boss.phaseTimer = BOSS_ATTACK_GAP;
+          boss.phaseTimer = boss.enraged ? BOSS1_RAGE_ATTACK_GAP : BOSS_ATTACK_GAP;
           boss.attackIndex += 1;
         }
         break;
@@ -414,7 +429,9 @@ export class GameEngine {
     if (attack === 0) {
       boss.laserThird = Math.floor(Math.random() * 3);
       boss.phase = "telegraph";
-      boss.phaseTimer = BOSS1_LASER_TELEGRAPH_TIME;
+      boss.phaseTimer = boss.enraged
+        ? BOSS1_LASER_TELEGRAPH_TIME * BOSS1_RAGE_TELEGRAPH_MULTIPLIER
+        : BOSS1_LASER_TELEGRAPH_TIME;
     } else if (attack === 1) {
       this.fireBoss1Spread(boss);
       boss.phase = "acting";
@@ -436,7 +453,8 @@ export class GameEngine {
   }
 
   private fireBoss1Spread(boss: Boss1) {
-    const count: number = BOSS1_SPREAD_COUNT;
+    const count: number = boss.enraged ? BOSS1_RAGE_SPREAD_COUNT : BOSS1_SPREAD_COUNT;
+    const bulletSpeed = boss.enraged ? BOSS1_BULLET_SPEED * BOSS1_RAGE_BULLET_SPEED_MULTIPLIER : BOSS1_BULLET_SPEED;
     const spreadAngle = Math.PI / 2.2;
     for (let i = 0; i < count; i++) {
       const t = count === 1 ? 0 : i / (count - 1);
@@ -446,8 +464,8 @@ export class GameEngine {
         y: boss.y + boss.h,
         w: BULLET_WIDTH,
         h: BULLET_HEIGHT,
-        vx: Math.cos(angle) * BOSS1_BULLET_SPEED,
-        vy: Math.sin(angle) * BOSS1_BULLET_SPEED,
+        vx: Math.cos(angle) * bulletSpeed,
+        vy: Math.sin(angle) * bulletSpeed,
       });
     }
   }
@@ -738,10 +756,17 @@ export class GameEngine {
       ctx.fillRect(boss.laserThird * thirdWidth, boss.y + boss.h, thirdWidth, GAME_HEIGHT - (boss.y + boss.h));
     }
 
-    ctx.fillStyle = "#ff6b00";
+    ctx.fillStyle = boss.enraged ? "#ff2020" : "#ff6b00";
     ctx.fillRect(boss.x, boss.y, boss.w, boss.h);
 
-    this.renderHealthBar(boss.x, boss.y - 14, boss.w, boss.health, boss.maxHealth, "BATTLESHIP");
+    this.renderHealthBar(
+      boss.x,
+      boss.y - 14,
+      boss.w,
+      boss.health,
+      boss.maxHealth,
+      boss.enraged ? "BATTLESHIP — RAGE" : "BATTLESHIP",
+    );
   }
 
   private renderBoss2(boss: Boss2) {
