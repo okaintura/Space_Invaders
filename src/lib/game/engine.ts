@@ -129,7 +129,7 @@ const BOSS2_MISSILE_TURN_RATE = 2.5;
 const BOSS2_MISSILE_SIZE = 10;
 const BOSS2_ORB_SIZE = 20;
 const BOSS2_ORB_SPEED = 90;
-const BOSS2_ORB_SPAWN_INTERVAL = 1.4;
+const BOSS2_ORB_SPAWN_INTERVAL = 2.6;
 const BOSS2_ORBS_REQUIRED = 4;
 const ASTEROID_SPAWN_INTERVAL = 0.8;
 const ASTEROID_MIN_SPEED = 70;
@@ -644,8 +644,8 @@ export class GameEngine {
     boss.x = Math.max(0, Math.min(GAME_WIDTH - boss.w, boss.x));
 
     if (phase === 3) {
-      // shield stays up permanently in the final phase; only the orbs can break it
-      boss.shielded = true;
+      // shield stays up until the orbs are cleared, then a normal hit finishes the boss off
+      boss.shielded = boss.orbsDestroyed < BOSS2_ORBS_REQUIRED;
     } else if (boss.shielded) {
       boss.shieldTimer -= dt;
       if (boss.shieldTimer <= 0) boss.shielded = false;
@@ -829,10 +829,6 @@ export class GameEngine {
       }
       if (consumed) {
         bullet.y = -9999;
-        if (boss.orbsDestroyed >= BOSS2_ORBS_REQUIRED) {
-          this.defeatBoss2();
-          return;
-        }
         continue;
       }
 
