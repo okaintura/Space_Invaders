@@ -97,6 +97,7 @@ const BOSS1_LASER_TELEGRAPH_TIME = 1;
 const BOSS1_LASER_FIRE_TIME = 0.6;
 const BOSS1_SPREAD_COUNT = 6;
 const BOSS1_SUMMON_COUNT = 3;
+const BOSS1_RAGE_SUMMON_COUNT = 5;
 const BOSS1_BULLET_SPEED = 200;
 const BOSS1_KILL_SCORE = 1000;
 const BOSS1_RAGE_HEALTH_RATIO = 0.35;
@@ -475,7 +476,7 @@ export class GameEngine {
   }
 
   // ============================================================
-  // Boss 1: mothership — laser / spread-shot / summon attack cycle
+  // Boss 1: Xerenas — laser / spread-shot / summon attack cycle
   // ============================================================
   private updateBoss1(dt: number) {
     const boss = this.boss1;
@@ -483,6 +484,7 @@ export class GameEngine {
 
     if (!boss.enraged && boss.health <= boss.maxHealth * BOSS1_RAGE_HEALTH_RATIO) {
       boss.enraged = true;
+      boss.health = boss.maxHealth * 0.5;
     }
 
     const speed = boss.enraged ? BOSS1_SPEED * BOSS1_RAGE_SPEED_MULTIPLIER : BOSS1_SPEED;
@@ -563,8 +565,11 @@ export class GameEngine {
   }
 
   private summonMinions(boss: Boss1) {
-    for (let i = 0; i < BOSS1_SUMMON_COUNT; i++) {
-      const x = boss.x + (boss.w / (BOSS1_SUMMON_COUNT + 1)) * (i + 1) - ALIEN_WIDTH / 2;
+    const count = boss.enraged ? BOSS1_RAGE_SUMMON_COUNT : BOSS1_SUMMON_COUNT;
+    for (let i = 0; i < count; i++) {
+      const x = boss.enraged
+        ? Math.random() * (GAME_WIDTH - ALIEN_WIDTH)
+        : boss.x + (boss.w / (count + 1)) * (i + 1) - ALIEN_WIDTH / 2;
       this.minions.push({
         x,
         y: boss.y + boss.h + 10,
@@ -653,7 +658,7 @@ export class GameEngine {
   }
 
   // ============================================================
-  // Boss 2: rival ship dogfight through an asteroid field
+  // Boss 2: Fallen Star dogfight through an asteroid field
   // ============================================================
   private updateBoss2(dt: number) {
     const boss = this.boss2;
@@ -998,7 +1003,7 @@ export class GameEngine {
       boss.w,
       boss.health,
       boss.maxHealth,
-      boss.enraged ? "MOTHERSHIP — OVERDRIVE" : "MOTHERSHIP",
+      boss.enraged ? "XERENAS — OVERDRIVE" : "XERENAS",
     );
   }
 
@@ -1026,7 +1031,7 @@ export class GameEngine {
     }
 
     const barWidth = 100;
-    this.renderHealthBar(boss.x + boss.w / 2 - barWidth / 2, boss.y - 14, barWidth, boss.health, boss.maxHealth, "RIVAL");
+    this.renderHealthBar(boss.x + boss.w / 2 - barWidth / 2, boss.y - 14, barWidth, boss.health, boss.maxHealth, "FALLEN STAR");
   }
 
   private renderBossWarning() {
@@ -1036,7 +1041,7 @@ export class GameEngine {
     ctx.lineWidth = 8;
     ctx.strokeRect(4, 4, GAME_WIDTH - 8, GAME_HEIGHT - 8);
 
-    const label = this.pendingBossKind === "boss1" ? "MOTHERSHIP" : "RIVAL";
+    const label = this.pendingBossKind === "boss1" ? "XERENAS" : "ENEMY SHIP";
     ctx.textAlign = "center";
     ctx.fillStyle = "#ff3333";
     ctx.font = "bold 22px monospace";
@@ -1061,7 +1066,7 @@ export class GameEngine {
       ctx.textAlign = "center";
       ctx.fillStyle = "#66ff99";
       ctx.font = "bold 20px monospace";
-      ctx.fillText("WAVE CLEAR", GAME_WIDTH / 2, GAME_HEIGHT / 2);
+      ctx.fillText("THREAT NEUTRALIZED", GAME_WIDTH / 2, GAME_HEIGHT / 2);
       ctx.textAlign = "left";
     }
   }
